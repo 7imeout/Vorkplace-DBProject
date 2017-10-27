@@ -1,0 +1,16 @@
+.checkstyle
+.classpath
+.project
+.settings
+benchmark.html
+bin
+data
+docs
+ext
+error.*
+temp
+test.out.txt
+.idea/
+*.log
+target/
+src/main/org/h2/res/help.csv
