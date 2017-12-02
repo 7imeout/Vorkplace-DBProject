@@ -15,6 +15,8 @@ import org.h2.value.ValueDouble;
 import org.h2.value.ValueLong;
 import org.h2.value.ValueNull;
 
+import java.util.ArrayList;
+
 /**
  * Data stored while calculating an aggregate.
  */
@@ -90,6 +92,10 @@ class AggregateDataDefault extends AggregateData {
             }
             break;
         }
+        case Aggregate.MODE: {
+
+        }
+        break;
         case Aggregate.BOOL_AND:
             v = v.convertTo(Value.BOOLEAN);
             if (value == null) {
@@ -105,6 +111,15 @@ class AggregateDataDefault extends AggregateData {
                 value = v;
             } else {
                 value = ValueBoolean.get(value.getBoolean().booleanValue() ||
+                        v.getBoolean().booleanValue());
+            }
+            break;
+        case Aggregate.BOOL_XOR:
+            v = v.convertTo(Value.BOOLEAN);
+            if (value == null) {
+                value = v;
+            } else {
+                value = ValueBoolean.get(value.getBoolean().booleanValue() ^
                         v.getBoolean().booleanValue());
             }
             break;
@@ -141,6 +156,7 @@ class AggregateDataDefault extends AggregateData {
         case Aggregate.BIT_OR:
         case Aggregate.BIT_AND:
         case Aggregate.BOOL_OR:
+        case Aggregate.BOOL_XOR:
         case Aggregate.BOOL_AND:
             v = value;
             break;
