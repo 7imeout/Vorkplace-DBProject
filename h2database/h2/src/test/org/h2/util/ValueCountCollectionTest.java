@@ -44,7 +44,7 @@ public class ValueCountCollectionTest {
     }
 
     @Test
-    public void testExtrapolatedMode() throws InterruptedException {
+    public void testExtrapolatedModeSmall() throws InterruptedException {
         testAdd();
         vcc1.finalizeCollection();
         boolean isReady = vcc1.isExtrapolateReady();
@@ -52,6 +52,23 @@ public class ValueCountCollectionTest {
 
         Value modeVal = vcc1.extrapolatedMode();
         assertEquals(0, modeVal.getInt());
+    }
+
+    @Test
+    public void testExtrapolatedModeLarge() throws InterruptedException {
+        testAddAll();
+        vcc1.add(testInts[88]);
+        vcc1.add(testInts[88]);
+        vcc1.add(testInts[88]);
+        vcc1.add(testInts[88]);
+        vcc1.add(testInts[88]);
+        vcc1.finalizeCollection();
+
+        boolean isReady = vcc1.isExtrapolateReady();
+        assertTrue(isReady);
+
+        Value modeVal = vcc1.extrapolatedMode();
+        assertEquals(88, modeVal.getInt());
     }
 
     @Test
