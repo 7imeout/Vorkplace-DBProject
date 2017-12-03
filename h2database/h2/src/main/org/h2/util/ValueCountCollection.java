@@ -17,6 +17,9 @@ public class ValueCountCollection implements Collection {
     private boolean collectionFinalized;
     private boolean extrapolateReady;
 
+    // shared object between inner class and Extrapolator for extrapolation on a separate thread
+    private final Object extrapolationSyncer = new Object();
+
     // mapping from a natural index to an actual Value and count
     private HashMap<Integer, ValueCountNode> extrapolatedIndexer;
 
@@ -36,6 +39,75 @@ public class ValueCountCollection implements Collection {
         int count;
     }
 
+    private class Extrapolator implements Runnable {
+        @Override
+        public void run() {
+            checkCollectionFinalizedPriorToExtrapolation();
+            extrapolatedIndexer = new HashMap<>();
+            extrapolatedList = new LinkedList<>();
+            Set<Map.Entry<Value, Integer>> valueSet = countMap.entrySet();
+
+            int maxCount = 0;
+            for (Map.Entry<Value, Integer> entry: valueSet) {
+                Value value = entry.getKey();
+                int count = entry.getValue();
+                int beginIndex = extrapolatedIndexer.size();
+                int endIndex = beginIndex + count;
+
+                ValueCountNode vcNode = new ValueCountNode(value, count);
+                extrapolatedList.add(vcNode);
+
+                for (int i = beginIndex; i < endIndex; i++) {
+                    extrapolatedIndexer.put(i, vcNode);
+                }
+
+                if (count > maxCount) {
+                    maxCount = count;
+                    modeNode = vcNode;
+                }
+            }
+
+            synchronized (extrapolationSyncer) {
+                extrapolateReady = true;
+                extrapolationSyncer.notifyAll();
+            }
+        }
+    }
+
+    private class ValueCountExtrapolatedIterator implements Iterator<Value> {
+
+        int cursor;
+        Value removalCache;
+
+        ValueCountExtrapolatedIterator() {
+            checkCollectionExtrapolationPriorToGet();
+            this.cursor = 0;
+            removalCache = null;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return cursor < size();
+        }
+
+        @Override
+        public Value next() {
+            if (hasNext()) {
+                removalCache = extrapolatedGet(cursor++);
+                return removalCache;
+            } else {
+                throw new NoSuchElementException("There is no next Extrapolated Value object available.");
+            }
+        }
+
+        @Override
+        public void remove() {
+            if (removalCache != null) {
+                ValueCountCollection.this.remove(removalCache);
+            }
+        }
+    }
+
     public ValueCountCollection() {
         this.size = 0;
         this.countMap = new TreeMap<>(new Comparator<Value>() {
@@ -47,8 +119,9 @@ public class ValueCountCollection implements Collection {
         clearExtrapolationDataMembers();
     }
 
-    public void finalizeCollection() {
-        checkAndPreventDuplicateFinalizatioon();
+    public void finalizeCollection() throws InterruptedException {
+        checkAndPreventDuplicateFinalization();
+        collectionFinalized = true;
         extrapolate();
     }
 
@@ -66,56 +139,14 @@ public class ValueCountCollection implements Collection {
         return modeNode == null ? null : modeNode.value;
     }
 
-    private void extrapolate() {
-        checkCollectionFinalizedPriorToExtrapolation();
-        extrapolatedIndexer = new HashMap<>();
-        extrapolatedList = new LinkedList<>();
-        Set<Map.Entry<Value, Integer>> valueSet = countMap.entrySet();
+    private void extrapolate() throws InterruptedException {
+        Thread extrapolationThread = new Thread(new Extrapolator());
+        extrapolationThread.start();
 
-        int maxCount = 0;
-        for (Map.Entry<Value, Integer> entry: valueSet) {
-            Value value = entry.getKey();
-            int count = entry.getValue();
-            int beginIndex = extrapolatedIndexer.size();
-            int endIndex = beginIndex + count;
-
-            ValueCountNode vcNode = new ValueCountNode(value, count);
-            extrapolatedList.add(vcNode);
-
-            for (int i = beginIndex; i < endIndex; i++) {
-                extrapolatedIndexer.put(i, vcNode);
+        synchronized (extrapolationSyncer) {
+            while (!extrapolateReady) {
+                extrapolationSyncer.wait();
             }
-
-            if (count > maxCount) {
-                maxCount = count;
-                modeNode = vcNode;
-            }
-        }
-
-        extrapolateReady = true;
-    }
-
-    private void checkAndPreventDuplicateFinalizatioon() {
-        if (collectionFinalized || extrapolateReady) {
-            throw new IllegalStateException("Collection has already been finalized.");
-        }
-    }
-
-    private void checkCollectionExtrapolationPriorToGet() {
-        if (!extrapolateReady) {
-            throw new IllegalStateException("Cannot get elements prior to extrapolation.");
-        }
-    }
-
-    private void checkCollectionFinalizedPriorToExtrapolation() {
-        if (!collectionFinalized) {
-            throw new IllegalStateException("Collection must be finalized before extrapolation can proceed.");
-        }
-    }
-
-    private void checkCollectionFinalizedPriorToModification() {
-        if (collectionFinalized) {
-            throw new IllegalStateException("Cannot add elements to finalized collection.");
         }
     }
 
@@ -131,29 +162,23 @@ public class ValueCountCollection implements Collection {
 
     @Override
     public boolean contains(Object o) {
-        return countMap.containsKey(o);
+        return (o instanceof Value) && countMap.containsKey(o);
     }
 
     @Override
     public Iterator iterator() {
-        return null;
-    }
-
-    @Override
-    public Object[] toArray() {
-        return new Object[0];
+        // constructor checks for finalization and extrapolator readiness
+        return new ValueCountExtrapolatedIterator();
     }
 
     @Override
     public boolean add(Object o) {
         checkCollectionFinalizedPriorToModification();
-        int count = 0;
         try {
-            if (contains(o)) {
-                count = 1 + countMap.get(o);
+            if (o instanceof Value) {
+                countMap.put((Value) o, contains(o) ? 1 + countMap.get(o) : 1);
             }
-            countMap.put((Value) o, count);
-        } catch (RuntimeException re) {
+        } catch (RuntimeException re) { // probably not the best thing to do
             return false;
         }
         size++;
@@ -164,11 +189,19 @@ public class ValueCountCollection implements Collection {
     public boolean remove(Object o) {
         checkCollectionFinalizedPriorToModification();
         try {
-            if ((size == 0) || !contains(o)) {
+            if (!(o instanceof Value) || (size == 0) || !contains(o)) {
                 return false;
             }
-            countMap.put((Value) o, countMap.get(o) - 1);
-        } catch (RuntimeException re) {
+
+            int newCount = countMap.get(o) - 1;
+
+            if (newCount > 0) {
+                countMap.put((Value) o, countMap.get(o) - 1);
+            } else {
+                countMap.remove(o);
+            }
+
+        } catch (RuntimeException re) { // probably not the best thing to do
             return false;
         }
         size--;
@@ -192,16 +225,16 @@ public class ValueCountCollection implements Collection {
         clearExtrapolationDataMembers();
     }
 
-    @Override
-    public boolean retainAll(Collection c) {
-        throw new UnsupportedOperationException();
-        // TODO as necessary
-    }
+
 
     @Override
     public boolean removeAll(Collection c) {
-        throw new UnsupportedOperationException();
-        // TODO as necessary
+        checkCollectionFinalizedPriorToModification();
+        boolean result = true;
+        for (Object o: c) {
+            result &= remove(o);
+        }
+        return result;
     }
 
     @Override
@@ -211,17 +244,12 @@ public class ValueCountCollection implements Collection {
         }
         else {
             for (Object o: c) {
-                if (contains(o)) {
+                if (!contains(o)) {
                     return false;
                 }
             }
             return true;
         }
-    }
-
-    @Override
-    public Object[] toArray(Object[] a) {
-        throw new UnsupportedOperationException();
     }
 
     private void clearExtrapolationDataMembers() {
@@ -232,5 +260,50 @@ public class ValueCountCollection implements Collection {
         this.extrapolatedList = null;
 
         this.modeNode = null;
+    }
+
+    @Override
+    public Object[] toArray() {
+        checkCollectionFinalizedPriorToExtrapolation();
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Object[] toArray(Object[] a) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean retainAll(Collection c) {
+        throw new UnsupportedOperationException();
+        // TODO as necessary
+    }
+
+    private void checkAndPreventDuplicateFinalization() {
+        if (collectionFinalized || extrapolateReady) {
+            throw new IllegalStateException(
+                    "Duplicate finalization attempt detected; collection has already been finalized.");
+        }
+    }
+
+    private void checkCollectionExtrapolationPriorToGet() {
+        if (!extrapolateReady) {
+            throw new IllegalStateException(
+                    "Cannot get elements prior to extrapolation; use isExtrapolateReady() to check its completion state.");
+        }
+    }
+
+    private void checkCollectionFinalizedPriorToExtrapolation() {
+        if (!collectionFinalized) {
+            throw new IllegalStateException(
+                    "Collection must be finalized before extrapolation can proceed.");
+        }
+    }
+
+    private void checkCollectionFinalizedPriorToModification() {
+        if (collectionFinalized) {
+            throw new IllegalStateException(
+                    "Modifying a finalized collection is not permitted.");
+        }
     }
 }
