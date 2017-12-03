@@ -1,5 +1,6 @@
 package org.h2.util;
 
+import org.h2.value.CompareMode;
 import org.h2.value.Value;
 
 import java.util.*;
@@ -37,7 +38,12 @@ public class ValueCountCollection implements Collection {
 
     public ValueCountCollection() {
         this.size = 0;
-        this.countMap = new TreeMap<>();
+        this.countMap = new TreeMap<>(new Comparator<Value>() {
+            @Override
+            public int compare(Value o1, Value o2) {
+                return o1.compareTypeSafe(o2, CompareMode.getInstance(null, 0));
+            }
+        });
         clearExtrapolationDataMembers();
     }
 
