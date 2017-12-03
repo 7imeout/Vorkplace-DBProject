@@ -458,6 +458,12 @@ public class Aggregate extends Expression {
             displaySize = ValueBoolean.DISPLAY_SIZE;
             scale = 0;
             break;
+        case MODE:
+            dataType = Value.STRING;
+            scale = 0;
+            precision = displaySize = Integer.MAX_VALUE;
+            scale = 0;
+            break;
         case BIT_AND:
         case BIT_OR:
             if (!DataType.supportsAdd(dataType)) {

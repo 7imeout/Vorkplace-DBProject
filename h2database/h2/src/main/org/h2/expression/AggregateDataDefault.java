@@ -7,13 +7,9 @@ package org.h2.expression;
 
 import org.h2.engine.Database;
 import org.h2.message.DbException;
+import org.h2.util.ValueCountCollection;
 import org.h2.util.ValueHashMap;
-import org.h2.value.DataType;
-import org.h2.value.Value;
-import org.h2.value.ValueBoolean;
-import org.h2.value.ValueDouble;
-import org.h2.value.ValueLong;
-import org.h2.value.ValueNull;
+import org.h2.value.*;
 
 import java.util.ArrayList;
 
@@ -26,6 +22,7 @@ class AggregateDataDefault extends AggregateData {
     private ValueHashMap<AggregateDataDefault> distinctValues;
     private Value value;
     private double m2, mean;
+    private ValueCountCollection valueCountCollection;
 
     /**
      * @param aggregateType the type of the aggregate operation
@@ -40,6 +37,9 @@ class AggregateDataDefault extends AggregateData {
             return;
         }
         count++;
+        if (valueCountCollection == null){
+            valueCountCollection = new ValueCountCollection();
+        }
         if (distinct) {
             if (distinctValues == null) {
                 distinctValues = ValueHashMap.newInstance();
@@ -93,7 +93,8 @@ class AggregateDataDefault extends AggregateData {
             break;
         }
         case Aggregate.MODE: {
-
+            valueCountCollection.add(v);
+            //value = v.convertTo(Value.STRING);
         }
         break;
         case Aggregate.BOOL_AND:
@@ -163,6 +164,14 @@ class AggregateDataDefault extends AggregateData {
         case Aggregate.AVG:
             if (value != null) {
                 v = divide(value, count);
+            }
+            break;
+        case Aggregate.MODE:
+            if(valueCountCollection != null){
+                //valueCountCollection.finalizeCollection();
+                //while(!valueCountCollection.isExtrapolateReady());
+                //v = valueCountCollection.extrapolatedMode();
+                v = ValueString.get("Hello World!");
             }
             break;
         case Aggregate.STDDEV_POP: {
