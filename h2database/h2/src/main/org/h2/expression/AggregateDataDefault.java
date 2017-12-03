@@ -94,7 +94,6 @@ class AggregateDataDefault extends AggregateData {
         }
         case Aggregate.MODE: {
             valueCountCollection.add(v);
-            //value = v.convertTo(Value.STRING);
         }
         break;
         case Aggregate.BOOL_AND:
@@ -168,10 +167,14 @@ class AggregateDataDefault extends AggregateData {
             break;
         case Aggregate.MODE:
             if(valueCountCollection != null){
-                //valueCountCollection.finalizeCollection();
-                //while(!valueCountCollection.isExtrapolateReady());
-                //v = valueCountCollection.extrapolatedMode();
-                v = ValueString.get("Hello World!");
+
+                try {
+                    valueCountCollection.finalizeCollection();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                while(!valueCountCollection.isExtrapolateReady());
+                v = valueCountCollection.extrapolatedMode();
             }
             break;
         case Aggregate.STDDEV_POP: {
