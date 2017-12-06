@@ -10,11 +10,7 @@ import org.h2.message.DbException;
 import org.h2.util.ValueCountCollection;
 import org.h2.util.ValueHashMap;
 import org.h2.value.*;
-<<<<<<< HEAD
-=======
-
 import java.util.ArrayList;
->>>>>>> 5b934c011177639263f7acee8e56fb1aaec1cbf8
 
 /**
  * Data stored while calculating an aggregate.
@@ -25,11 +21,8 @@ class AggregateDataDefault extends AggregateData {
     private ValueHashMap<AggregateDataDefault> distinctValues;
     private Value value;
     private double m2, mean;
-<<<<<<< HEAD
     private double product, sum;
-=======
     private ValueCountCollection valueCountCollection;
->>>>>>> 5b934c011177639263f7acee8e56fb1aaec1cbf8
 
     /**
      * @param aggregateType the type of the aggregate operation
