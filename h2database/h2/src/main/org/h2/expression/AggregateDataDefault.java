@@ -8,12 +8,7 @@ package org.h2.expression;
 import org.h2.engine.Database;
 import org.h2.message.DbException;
 import org.h2.util.ValueHashMap;
-import org.h2.value.DataType;
-import org.h2.value.Value;
-import org.h2.value.ValueBoolean;
-import org.h2.value.ValueDouble;
-import org.h2.value.ValueLong;
-import org.h2.value.ValueNull;
+import org.h2.value.*;
 
 /**
  * Data stored while calculating an aggregate.
@@ -24,6 +19,7 @@ class AggregateDataDefault extends AggregateData {
     private ValueHashMap<AggregateDataDefault> distinctValues;
     private Value value;
     private double m2, mean;
+    private double product, sum;
 
     /**
      * @param aggregateType the type of the aggregate operation
@@ -122,6 +118,41 @@ class AggregateDataDefault extends AggregateData {
                 value = ValueLong.get(value.getLong() | v.getLong()).convertTo(dataType);
             }
             break;
+        case Aggregate.CONF_INT_80:
+        case Aggregate.CONF_INT_85:
+        case Aggregate.CONF_INT_90:
+        case Aggregate.CONF_INT_95:
+        case Aggregate.CONF_INT_99:
+        case Aggregate.CONF_INT_99_5:
+        case Aggregate.CONF_INT_99_9:
+            double x = v.getDouble();
+            if (count == 1) {
+                mean = x;
+                m2 = 0;
+            } else {
+                double delta = x - mean;
+                mean += delta / count;
+                m2 += delta * (x - mean);
+            }
+            break;
+        case Aggregate.GEOMEAN:
+            double y = v.getDouble();
+            if (count == 1) {
+                product = y;
+            }
+            else {
+                product *= y;
+            }
+            break;
+        case Aggregate.HARMEAN:
+            double z = v.getDouble();
+            if (count == 1) {
+                sum = (1.0 / z);
+            }
+            else {
+                sum += (1.0 / z);
+            }
+            break;
         default:
             DbException.throwInternalError("type=" + aggregateType);
         }
@@ -175,6 +206,115 @@ class AggregateDataDefault extends AggregateData {
                 return ValueNull.INSTANCE;
             }
             v = ValueDouble.get(m2 / (count - 1));
+            break;
+        }
+        case Aggregate.CONF_INT_80: {
+            if (count == 0) {
+                return ValueString.get("null");
+            }
+            double stdDev = Math.sqrt(m2 / (count - 1));
+            double left = mean - (1.282 * (stdDev / Math.sqrt(count)));
+            double right = mean + (1.282 * (stdDev / Math.sqrt(count)));
+            String bottom = String.valueOf((double)Math.round(left * 1000d) / 1000d);
+            String top = String.valueOf((double)Math.round(right * 1000d) / 1000d);
+            String result = "(" + bottom + ", " + top + ")";
+            v = ValueString.get(result);
+            break;
+        }
+        case Aggregate.CONF_INT_85: {
+            if (count == 0) {
+                return ValueString.get("null");
+            }
+            double stdDev = Math.sqrt(m2 / (count - 1));
+            double left = mean - (1.440 * (stdDev / Math.sqrt(count)));
+            double right = mean + (1.440 * (stdDev / Math.sqrt(count)));
+            String bottom = String.valueOf((double)Math.round(left * 1000d) / 1000d);
+            String top = String.valueOf((double)Math.round(right * 1000d) / 1000d);
+            String result = "(" + bottom + ", " + top + ")";
+            v = ValueString.get(result);
+            break;
+        }
+        case Aggregate.CONF_INT_90: {
+            if (count == 0) {
+                return ValueString.get("null");
+            }
+            double stdDev = Math.sqrt(m2 / (count - 1));
+            double left = mean - (1.645 * (stdDev / Math.sqrt(count)));
+            double right = mean + (1.645 * (stdDev / Math.sqrt(count)));
+            String bottom = String.valueOf((double)Math.round(left * 1000d) / 1000d);
+            String top = String.valueOf((double)Math.round(right * 1000d) / 1000d);
+            String result = "(" + bottom + ", " + top + ")";
+            v = ValueString.get(result);
+            break;
+        }
+        case Aggregate.CONF_INT_95: {
+            if (count == 0) {
+                return ValueString.get("null");
+            }
+            double stdDev = Math.sqrt(m2 / (count - 1));
+            double left = mean - (1.960 * (stdDev / Math.sqrt(count)));
+            double right = mean + (1.960 * (stdDev / Math.sqrt(count)));
+            String bottom = String.valueOf((double)Math.round(left * 1000d) / 1000d);
+            String top = String.valueOf((double)Math.round(right * 1000d) / 1000d);
+            String result = "(" + bottom + ", " + top + ")";
+            v = ValueString.get(result);
+            break;
+        }
+        case Aggregate.CONF_INT_99: {
+            if (count == 0) {
+                return ValueString.get("null");
+            }
+            double stdDev = Math.sqrt(m2 / (count - 1));
+            double left = mean - (2.576 * (stdDev / Math.sqrt(count)));
+            double right = mean + (2.576 * (stdDev / Math.sqrt(count)));
+            String bottom = String.valueOf((double)Math.round(left * 1000d) / 1000d);
+            String top = String.valueOf((double)Math.round(right * 1000d) / 1000d);
+            String result = "(" + bottom + ", " + top + ")";
+            v = ValueString.get(result);
+            break;
+        }
+        case Aggregate.CONF_INT_99_5: {
+            if (count == 0) {
+                return ValueString.get("null");
+            }
+            double stdDev = Math.sqrt(m2 / (count - 1));
+            double left = mean - (2.807 * (stdDev / Math.sqrt(count)));
+            double right = mean + (2.807 * (stdDev / Math.sqrt(count)));
+            String bottom = String.valueOf((double)Math.round(left * 1000d) / 1000d);
+            String top = String.valueOf((double)Math.round(right * 1000d) / 1000d);
+            String result = "(" + bottom + ", " + top + ")";
+            v = ValueString.get(result);
+            break;
+        }
+        case Aggregate.CONF_INT_99_9: {
+            if (count == 0) {
+                return ValueString.get("null");
+            }
+            double stdDev = Math.sqrt(m2 / (count - 1));
+            double left = mean - (3.291 * (stdDev / Math.sqrt(count)));
+            double right = mean + (3.291 * (stdDev / Math.sqrt(count)));
+            String bottom = String.valueOf((double)Math.round(left * 1000d) / 1000d);
+            String top = String.valueOf((double)Math.round(right * 1000d) / 1000d);
+            String result = "(" + bottom + ", " + top + ")";
+            v = ValueString.get(result);
+            break;
+        }
+        case Aggregate.GEOMEAN: {
+            if (count == 0) {
+                return ValueString.get("null");
+            }
+            double geomean = Math.pow(product, (1.0 / count));
+            geomean = (double)Math.round(geomean * 1000d) / 1000d;
+            v = ValueDouble.get(geomean);
+            break;
+        }
+        case Aggregate.HARMEAN: {
+            if (count == 0) {
+                return ValueString.get("null");
+            }
+            double harmean = count / sum;
+            harmean = (double)Math.round(harmean * 1000d) / 1000d;
+            v = ValueDouble.get(harmean);
             break;
         }
         default:

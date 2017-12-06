@@ -125,6 +125,21 @@ public class Aggregate extends Expression {
      */
     static final int HISTOGRAM = 16;
 
+
+
+    /* The aggregate types for Confidence Intervals (ERICK) */
+    static final int CONF_INT_80 = 200;
+    static final int CONF_INT_85 = 201;
+    static final int CONF_INT_90 = 202;
+    static final int CONF_INT_95 = 203;
+    static final int CONF_INT_99 = 204;
+    static final int CONF_INT_99_5 = 205;
+    static final int CONF_INT_99_9 = 206;
+
+    /* The aggregate types for Geometric and Harmonic Means (ERICK) */
+    static final int GEOMEAN = 207;
+    static final int HARMEAN = 208;
+
     private static final HashMap<String, Integer> AGGREGATES = New.hashMap();
 
     private final int type;
@@ -183,6 +198,16 @@ public class Aggregate extends Expression {
         addAggregate("HISTOGRAM", HISTOGRAM);
         addAggregate("BIT_OR", BIT_OR);
         addAggregate("BIT_AND", BIT_AND);
+        // ADDED BY ERICK
+        addAggregate("CONF_INT_80", CONF_INT_80);
+        addAggregate("CONF_INT_85", CONF_INT_85);
+        addAggregate("CONF_INT_90", CONF_INT_90);
+        addAggregate("CONF_INT_95", CONF_INT_95);
+        addAggregate("CONF_INT_99", CONF_INT_99);
+        addAggregate("CONF_INT_99_5", CONF_INT_99_5);
+        addAggregate("CONF_INT_99_9", CONF_INT_99_9);
+        addAggregate("GEOMEAN", GEOMEAN);
+        addAggregate("HARMEAN", HARMEAN);
     }
 
     private static void addAggregate(String name, int type) {
@@ -349,6 +374,7 @@ public class Aggregate extends Expression {
             }
             v = ValueString.get(buff.toString());
         }
+
         return v;
     }
 
@@ -392,6 +418,13 @@ public class Aggregate extends Expression {
         }
         switch (type) {
         case GROUP_CONCAT:
+        case CONF_INT_80:
+        case CONF_INT_85:
+        case CONF_INT_90:
+        case CONF_INT_95:
+        case CONF_INT_99:
+        case CONF_INT_99_5:
+        case CONF_INT_99_9:
             dataType = Value.STRING;
             scale = 0;
             precision = displaySize = Integer.MAX_VALUE;
@@ -453,6 +486,13 @@ public class Aggregate extends Expression {
             if (!DataType.supportsAdd(dataType)) {
                 throw DbException.get(ErrorCode.SUM_OR_AVG_ON_WRONG_DATATYPE_1, getSQL());
             }
+            break;
+        case GEOMEAN:
+        case HARMEAN:
+            dataType = Value.DOUBLE;
+            precision = ValueDouble.PRECISION;
+            displaySize = ValueDouble.DISPLAY_SIZE;
+            scale = 0;
             break;
         default:
             DbException.throwInternalError("type=" + type);
@@ -565,6 +605,24 @@ public class Aggregate extends Expression {
         case BIT_OR:
             text = "BIT_OR";
             break;
+        case CONF_INT_80:
+            return "CONF_INT_80";
+        case CONF_INT_85:
+            return "CONF_INT_85";
+        case CONF_INT_90:
+            return "CONF_INT_90";
+        case CONF_INT_95:
+            return "CONF_INT_95";
+        case CONF_INT_99:
+            return "CONF_INT_99";
+        case CONF_INT_99_5:
+            return "CONF_INT_99_5";
+        case CONF_INT_99_9:
+            return "CONF_INT_99_9";
+        case GEOMEAN:
+            return "GEOMEAN";
+        case HARMEAN:
+            return "HARMEAN";
         default:
             throw DbException.throwInternalError("type=" + type);
         }

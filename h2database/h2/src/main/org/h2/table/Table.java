@@ -43,7 +43,9 @@ import org.h2.value.ValueNull;
  * This is the base class for most tables.
  * A table contains a list of columns and a list of rows.
  */
-public abstract class Table extends SchemaObjectBase {
+public abstract class
+
+Table extends SchemaObjectBase {
 
     /**
      * The table type that means this table is a regular persistent table.

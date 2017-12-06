@@ -35,7 +35,8 @@ import org.h2.util.Utils;
  * Interactive command line tool to access a database using JDBC.
  * @h2.resource
  */
-public class Shell extends Tool implements Runnable {
+public class
+Shell extends Tool implements Runnable {
 
     private static final int MAX_ROW_BUFFER = 5000;
     private static final int HISTORY_COUNT = 20;
