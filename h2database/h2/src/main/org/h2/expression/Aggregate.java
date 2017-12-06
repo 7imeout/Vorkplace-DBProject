@@ -124,6 +124,14 @@ public class Aggregate extends Expression {
      * The aggregate type for HISTOGRAM(expression).
      */
     static final int HISTOGRAM = 16;
+    /**
+     * The aggregate type for BOOL_XOR(expression).
+     */
+    static final int BOOL_XOR = 17;
+    /**
+     * The aggregate type for MODE(expression).
+     */
+    static final int MODE = 18;
 
 
 
@@ -189,6 +197,8 @@ public class Aggregate extends Expression {
         addAggregate("VAR", VAR_SAMP);
         addAggregate("VARIANCE", VAR_SAMP);
         addAggregate("BOOL_OR", BOOL_OR);
+        addAggregate("BOOL_XOR", BOOL_XOR);
+        addAggregate("MODE", MODE);
         // HSQLDB compatibility, but conflicts with x > EVERY(...)
         addAggregate("SOME", BOOL_OR);
         addAggregate("BOOL_AND", BOOL_AND);
@@ -475,10 +485,16 @@ public class Aggregate extends Expression {
             scale = 0;
             break;
         case BOOL_AND:
-        case BOOL_OR:
+        case BOOL_OR: case BOOL_XOR:
             dataType = Value.BOOLEAN;
             precision = ValueBoolean.PRECISION;
             displaySize = ValueBoolean.DISPLAY_SIZE;
+            scale = 0;
+            break;
+        case MODE:
+            dataType = Value.STRING;
+            scale = 0;
+            precision = displaySize = Integer.MAX_VALUE;
             scale = 0;
             break;
         case BIT_AND:
@@ -599,6 +615,12 @@ public class Aggregate extends Expression {
         case BOOL_OR:
             text = "BOOL_OR";
             break;
+        case BOOL_XOR:
+            text = "BOOL_XOR";
+            break;
+        case MODE:
+            text = "MODE";
+            break;
         case BIT_AND:
             text = "BIT_AND";
             break;
@@ -659,7 +681,7 @@ public class Aggregate extends Expression {
                 return visitor.getTable().canGetRowCount();
             case MIN:
             case MAX:
-                Index index = getMinMaxColumnIndex();
+Index index = getMinMaxColumnIndex();
                 return index != null;
             default:
                 return false;

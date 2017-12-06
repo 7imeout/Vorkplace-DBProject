@@ -7,8 +7,14 @@ package org.h2.expression;
 
 import org.h2.engine.Database;
 import org.h2.message.DbException;
+import org.h2.util.ValueCountCollection;
 import org.h2.util.ValueHashMap;
 import org.h2.value.*;
+<<<<<<< HEAD
+=======
+
+import java.util.ArrayList;
+>>>>>>> 5b934c011177639263f7acee8e56fb1aaec1cbf8
 
 /**
  * Data stored while calculating an aggregate.
@@ -19,7 +25,11 @@ class AggregateDataDefault extends AggregateData {
     private ValueHashMap<AggregateDataDefault> distinctValues;
     private Value value;
     private double m2, mean;
+<<<<<<< HEAD
     private double product, sum;
+=======
+    private ValueCountCollection valueCountCollection;
+>>>>>>> 5b934c011177639263f7acee8e56fb1aaec1cbf8
 
     /**
      * @param aggregateType the type of the aggregate operation
@@ -34,6 +44,9 @@ class AggregateDataDefault extends AggregateData {
             return;
         }
         count++;
+        if (valueCountCollection == null){
+            valueCountCollection = new ValueCountCollection();
+        }
         if (distinct) {
             if (distinctValues == null) {
                 distinctValues = ValueHashMap.newInstance();
@@ -86,6 +99,10 @@ class AggregateDataDefault extends AggregateData {
             }
             break;
         }
+        case Aggregate.MODE: {
+            valueCountCollection.add(v);
+        }
+        break;
         case Aggregate.BOOL_AND:
             v = v.convertTo(Value.BOOLEAN);
             if (value == null) {
@@ -101,6 +118,15 @@ class AggregateDataDefault extends AggregateData {
                 value = v;
             } else {
                 value = ValueBoolean.get(value.getBoolean().booleanValue() ||
+                        v.getBoolean().booleanValue());
+            }
+            break;
+        case Aggregate.BOOL_XOR:
+            v = v.convertTo(Value.BOOLEAN);
+            if (value == null) {
+                value = v;
+            } else {
+                value = ValueBoolean.get(value.getBoolean().booleanValue() ^
                         v.getBoolean().booleanValue());
             }
             break;
@@ -172,12 +198,25 @@ class AggregateDataDefault extends AggregateData {
         case Aggregate.BIT_OR:
         case Aggregate.BIT_AND:
         case Aggregate.BOOL_OR:
+        case Aggregate.BOOL_XOR:
         case Aggregate.BOOL_AND:
             v = value;
             break;
         case Aggregate.AVG:
             if (value != null) {
                 v = divide(value, count);
+            }
+            break;
+        case Aggregate.MODE:
+            if(valueCountCollection != null){
+
+                try {
+                    valueCountCollection.finalizeCollection();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                while(!valueCountCollection.isExtrapolateReady());
+                v = valueCountCollection.extrapolatedMode();
             }
             break;
         case Aggregate.STDDEV_POP: {
