@@ -5,6 +5,21 @@ import org.h2.value.Value;
 
 import java.util.*;
 
+/**
+ * Allows compact storage of intermediary selection and projection results
+ * that are necessary to be able to support certain aggregation functions.
+ *
+ * This class has two main "phases," first of which is a modification phase
+ * where data may be added or removed, and all Value added and their Count
+ * are kept track in a TreeMap for ordered retrieval later.
+ *
+ * Once the modification phase is complete, finalizeCollection() call must
+ * be made before extrapolation and array-like value retrieval is enabled.
+ * Once extrapolation is completed, this class is locked into read-only phase.
+ *
+ * @author Mike Ryu doryu@calpoly.edu
+ * @version 2017-12-06
+ */
 public class ValueCountCollection implements Collection {
 
     /** size of the whole data structure*/
@@ -23,20 +38,22 @@ public class ValueCountCollection implements Collection {
     /** mapping from a natural index to an actual Value and count */
     private HashMap<Integer, ValueCountNode> extrapolatedIndexer;
 
-    // sequential (in-order) list of Value-count pairs as the result of extrapolation
+    /** sequential (in-order) list of Value-count pairs as the result of extrapolation */
     private LinkedList<ValueCountNode> extrapolatedList;
 
-    // reference to a node that is the mode
+    /** reference to a node that is the mode */
     private ValueCountNode modeNode;
 
-    /* ValueCountNode Constructor */
     /**
-     * Returns the number of rows in the result set.
-     *
+     * Node in a compact LinkedList storage for extrapolation.
      */
     private class ValueCountNode {
-        /** @param value the key
-         * @param count  the value */
+
+        /**
+         * Default constructor. Simply assigns Value and count.
+         * @param value Value for the node.
+         * @param count initial count for the node.
+         */
         ValueCountNode(Value value, int count) {
             this.value = value;
             this.count = count;
@@ -46,6 +63,9 @@ public class ValueCountCollection implements Collection {
         int count;
     }
 
+    /**
+     * Runnable implementation to allow extrapolation in a separate thread.
+     */
     private class Extrapolator implements Runnable {
         @Override
         public void run() {
@@ -81,11 +101,17 @@ public class ValueCountCollection implements Collection {
         }
     }
 
+    /**
+     * Iterator that allows extrapolated reads from this class.
+     */
     private class ValueCountExtrapolatedIterator implements Iterator<Value> {
 
         int cursor;
         Value removalCache;
 
+        /**
+         * Default constructor. Checks extrapolation completion before proceeding to initialize members.
+         */
         ValueCountExtrapolatedIterator() {
             checkCollectionExtrapolationPriorToGet();
             this.cursor = 0;
@@ -116,7 +142,8 @@ public class ValueCountCollection implements Collection {
     }
 
     /**
-     * ValueCountCollection Constructor
+     * Default ValueCountCollection constructor.
+     * TreeMap is initialized with a default comparator for Values for ordering.
      */
     public ValueCountCollection() {
         this.size = 0;
@@ -129,8 +156,15 @@ public class ValueCountCollection implements Collection {
         clearExtrapolationDataMembers();
     }
     /**
-     * Must be called before accessing collection.
-     * @throws InterruptedException if synchronization fails
+     * Use this method to signal the end of modification phase and finalize the content of this collection;
+     * this method MUST be called before accessing collection with extrapolatedGet(naturalIndex) or extrapolatedMode().
+     *
+     * Once this method is called, no additional modification (addition or removal) or values will be permitted,
+     * and extrapolation to reconstruct the intermediary table for aggregation begins on a separate thread.
+     *
+     * Once this method returns, calls to extrapolatedGet(naturalIndex) and extrapolatedMode() will be permitted.
+     *
+     * @throws InterruptedException if the extrapolation thread was interrupted unexpectedly.
      */
     public void finalizeCollection() throws InterruptedException {
         checkAndPreventDuplicateFinalization();
@@ -139,39 +173,43 @@ public class ValueCountCollection implements Collection {
     }
 
     /**
-     * @return true if calls to extrapolated*() methods may be called
+     * Use this method as a fail-safe check in the client methods to ensure that
+     * the extrapolation has been completed before accessing the Value members.
+     *
+     * @return true if extrapolation is complete and this object is in read-only mode, false otherwise.
      */
     public boolean isExtrapolateReady() {
         return extrapolateReady;
     }
 
     /**
-     * Returns the desired item
-     * @param naturalIndex logical index into collection
-     * @return the desired value
+     * Returns the desired item at a given array-like natural index [0, size).
+     *
+     * IndexOutOfBoundsException gets through if the index given is negative or out of bounds.
+     *
+     * @param naturalIndex array-like sequential index into this Collection.
+     * @return Value at the given index, if the index is within bounds.
      */
     public Value extrapolatedGet(int naturalIndex) {
         checkCollectionExtrapolationPriorToGet();
         ValueCountNode desiredNode = extrapolatedIndexer.get(naturalIndex);
+
+        if (desiredNode == null) {
+            throw new IndexOutOfBoundsException("index " + naturalIndex + " does not occur in this collection.");
+        }
+
         return desiredNode.value;
     }
 
     /**
-     * @return the mode
+     * Returns the Value that occurs most frequently in this collection.
+     *
+     * If there is a tie, Value that was most recently encountered during the modification phase is selected.
+     *
+     * @return the mode (most frequent) Value in this collection.
      */
     public Value extrapolatedMode() {
         return modeNode == null ? null : modeNode.value;
-    }
-
-    private void extrapolate() throws InterruptedException {
-        Thread extrapolationThread = new Thread(new Extrapolator());
-        extrapolationThread.start();
-
-        synchronized (extrapolationSyncer) {
-            while (!extrapolateReady) {
-                extrapolationSyncer.wait();
-            }
-        }
     }
 
     @Override
@@ -249,8 +287,6 @@ public class ValueCountCollection implements Collection {
         clearExtrapolationDataMembers();
     }
 
-
-
     @Override
     public boolean removeAll(Collection c) {
         checkCollectionFinalizedPriorToModification();
@@ -276,16 +312,6 @@ public class ValueCountCollection implements Collection {
         }
     }
 
-    private void clearExtrapolationDataMembers() {
-        this.collectionFinalized = false;
-        this.extrapolateReady = false;
-
-        this.extrapolatedIndexer = null;
-        this.extrapolatedList = null;
-
-        this.modeNode = null;
-    }
-
     @Override
     public Object[] toArray() {
         checkCollectionFinalizedPriorToExtrapolation();
@@ -301,6 +327,29 @@ public class ValueCountCollection implements Collection {
     public boolean retainAll(Collection c) {
         throw new UnsupportedOperationException();
         // TODO as necessary
+    }
+
+    /* PRIVATE HELPER METHODS BELOW */
+
+    private void extrapolate() throws InterruptedException {
+        Thread extrapolationThread = new Thread(new Extrapolator());
+        extrapolationThread.start();
+
+        synchronized (extrapolationSyncer) {
+            while (!extrapolateReady) {
+                extrapolationSyncer.wait();
+            }
+        }
+    }
+
+    private void clearExtrapolationDataMembers() {
+        this.collectionFinalized = false;
+        this.extrapolateReady = false;
+
+        this.extrapolatedIndexer = null;
+        this.extrapolatedList = null;
+
+        this.modeNode = null;
     }
 
     private void checkAndPreventDuplicateFinalization() {
