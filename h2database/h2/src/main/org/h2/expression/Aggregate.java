@@ -132,6 +132,9 @@ public class Aggregate extends Expression {
      * The aggregate type for MODE(expression).
      */
     static final int MODE = 18;
+    static final int MEDIAN = 19;
+    static final int LARGE = 20;
+    static final int SMALL = 21;
 
 
 
@@ -199,6 +202,9 @@ public class Aggregate extends Expression {
         addAggregate("BOOL_OR", BOOL_OR);
         addAggregate("BOOL_XOR", BOOL_XOR);
         addAggregate("MODE", MODE);
+        addAggregate("MEDIAN", MEDIAN);
+        addAggregate("LARGE", LARGE);
+        addAggregate("SMALL", SMALL);
         // HSQLDB compatibility, but conflicts with x > EVERY(...)
         addAggregate("SOME", BOOL_OR);
         addAggregate("BOOL_AND", BOOL_AND);
@@ -491,6 +497,9 @@ public class Aggregate extends Expression {
             displaySize = ValueBoolean.DISPLAY_SIZE;
             scale = 0;
             break;
+        case LARGE:
+        case SMALL:
+        case MEDIAN:
         case MODE:
             dataType = Value.STRING;
             scale = 0;
@@ -620,6 +629,15 @@ public class Aggregate extends Expression {
             break;
         case MODE:
             text = "MODE";
+            break;
+        case MEDIAN:
+            text = "MEDIAN";
+            break;
+        case LARGE:
+            text = "LARGE";
+            break;
+        case SMALL:
+            text = "SMALL";
             break;
         case BIT_AND:
             text = "BIT_AND";

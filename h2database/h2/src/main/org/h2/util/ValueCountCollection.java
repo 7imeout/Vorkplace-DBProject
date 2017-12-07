@@ -7,20 +7,20 @@ import java.util.*;
 
 public class ValueCountCollection implements Collection {
 
-    // size of the whole data structure
+    /** size of the whole data structure*/
     private int size;
 
-    // tree map to compactly keep track of count of each occurrence of the value
+    /** tree map to compactly keep track of count of each occurrence of the value*/
     private TreeMap<Value, Integer> countMap;
 
-    // flags indicating state of this collection
+    /** flags indicating state of this collection*/
     private boolean collectionFinalized;
     private boolean extrapolateReady;
 
-    // shared object between inner class and Extrapolator for extrapolation on a separate thread
+    /** shared object between inner class and Extrapolator for extrapolation on a separate thread*/
     private final Object extrapolationSyncer = new Object();
 
-    // mapping from a natural index to an actual Value and count
+    /** mapping from a natural index to an actual Value and count */
     private HashMap<Integer, ValueCountNode> extrapolatedIndexer;
 
     // sequential (in-order) list of Value-count pairs as the result of extrapolation
@@ -29,7 +29,14 @@ public class ValueCountCollection implements Collection {
     // reference to a node that is the mode
     private ValueCountNode modeNode;
 
+    /* ValueCountNode Constructor */
+    /**
+     * Returns the number of rows in the result set.
+     *
+     */
     private class ValueCountNode {
+        /** @param value the key
+         * @param count  the value */
         ValueCountNode(Value value, int count) {
             this.value = value;
             this.count = count;
@@ -108,6 +115,9 @@ public class ValueCountCollection implements Collection {
         }
     }
 
+    /**
+     * ValueCountCollection Constructor
+     */
     public ValueCountCollection() {
         this.size = 0;
         this.countMap = new TreeMap<>(new Comparator<Value>() {
@@ -118,23 +128,37 @@ public class ValueCountCollection implements Collection {
         });
         clearExtrapolationDataMembers();
     }
-
+    /**
+     * Must be called before accessing collection.
+     * @throws InterruptedException if synchronization fails
+     */
     public void finalizeCollection() throws InterruptedException {
         checkAndPreventDuplicateFinalization();
         collectionFinalized = true;
         extrapolate();
     }
 
+    /**
+     * @return true if calls to extrapolated*() methods may be called
+     */
     public boolean isExtrapolateReady() {
         return extrapolateReady;
     }
 
+    /**
+     * Returns the desired item
+     * @param naturalIndex logical index into collection
+     * @return the desired value
+     */
     public Value extrapolatedGet(int naturalIndex) {
         checkCollectionExtrapolationPriorToGet();
         ValueCountNode desiredNode = extrapolatedIndexer.get(naturalIndex);
         return desiredNode.value;
     }
 
+    /**
+     * @return the mode
+     */
     public Value extrapolatedMode() {
         return modeNode == null ? null : modeNode.value;
     }

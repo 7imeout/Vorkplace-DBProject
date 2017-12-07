@@ -92,10 +92,13 @@ class AggregateDataDefault extends AggregateData {
             }
             break;
         }
+        case Aggregate.LARGE:
+        case Aggregate.SMALL:
+        case Aggregate.MEDIAN:
         case Aggregate.MODE: {
             valueCountCollection.add(v);
         }
-        break;
+            break;
         case Aggregate.BOOL_AND:
             v = v.convertTo(Value.BOOLEAN);
             if (value == null) {
@@ -198,6 +201,30 @@ class AggregateDataDefault extends AggregateData {
         case Aggregate.AVG:
             if (value != null) {
                 v = divide(value, count);
+            }
+            break;
+//            case Aggregate.LARGE:
+//            if(valueCountCollection != null){
+//
+//                try {
+//                    valueCountCollection.finalizeCollection();
+//                } catch (InterruptedException e) {
+//                    e.printStackTrace();
+//                }
+//                while(!valueCountCollection.isExtrapolateReady());
+//                v = valueCountCollection.extrapolatedGet(valueCountCollection.size() / 2);
+//            }
+//            break;
+    case Aggregate.MEDIAN:
+            if(valueCountCollection != null){
+
+                try {
+                    valueCountCollection.finalizeCollection();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                while(!valueCountCollection.isExtrapolateReady());
+                v = valueCountCollection.extrapolatedGet(valueCountCollection.size() / 2);
             }
             break;
         case Aggregate.MODE:
